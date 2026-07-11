@@ -21,7 +21,8 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: 22
-          registry-url: "https://registry.npmjs.org"
+          # No registry-url: it writes an .npmrc _authToken line whose
+          # NODE_AUTH_TOKEN placeholder overrides OIDC trusted publishing.
           cache: npm
       - name: Upgrade npm (trusted publishing needs >=11.5.1)
         run: npm install -g npm@latest
