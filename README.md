@@ -11,19 +11,13 @@ picker between prompts.
 ## Why
 
 Picking a model and a thinking level for each prompt is cognitive load, and it adds up. Describe
-your preferences once and the dialer picks for you, based on what you ask. It works with any model
-you're authed for and pi's thinking levels from `off` through `xhigh`. (No `max` level is wired
-up. I don't use one. Adding it is a small change if your setup has it.)
+your preferences once and the dialer picks for you, based on what you ask. It works with any
+authenticated text model available to pi and supports thinking levels from `off` through `xhigh`.
 
 Save **named setups** and switch between them with `/dialer save` and `/dialer use`. A single
 **global config** follows you everywhere, and a long-term project can carry its own
 `.pi/dialer.json` when it deserves different routing.
 
-> **PS:** I haven't measured provider caching under per-prompt model switching yet. Prompt caches
-> are per-model, so frequent switching may cost you cache hits. One future idea is to build
-> configs from evals. Pick a benchmark you trust (an Artificial Analysis config, a Vals config, a
-> VulcanBench config), let it assign the model and thinking level per task type, and your favorite
-> eval becomes your dialer.
 
 ## How it works
 
@@ -38,9 +32,10 @@ Save **named setups** and switch between them with `/dialer save` and `/dialer u
 3. The dialer applies the winning task's model and thinking level through pi's
    `setModel`/`setThinkingLevel` before the agent starts, and the footer shows the pick, e.g.
    `Dialer: plan → anthropic/claude-opus-4-5 (high)`.
-4. Context compaction (manual `/compact` or automatic) would normally use the selected model —
-   the virtual one, while parked — so the dialer runs it against a real model instead: the
-   `default` route's model, falling back to the last real model used.
+4. Manual `/compact` and automatic threshold compaction run against a real model while the
+   dialer is parked on its virtual model. The dialer prefers the `default` route's model, then
+   the last real model used, then any authenticated text model. If none is available, it cancels
+   compaction with a notification instead of sending the request to the virtual router.
 5. Each routed response ends with a stamp showing what ran and why.
 
    ```
@@ -69,7 +64,7 @@ keyword list of any built-in.
 
 ```bash
 pi install /path/to/pi-dialer   # from a local checkout
-pi install npm:pi-dialer        # from npm, once published
+pi install npm:pi-dialer        # from npm
 ```
 
 After installing or updating in a running session, run `/reload`.
@@ -144,8 +139,10 @@ Routes live in two places.
 - `~/.pi/agent/dialer.json` (global, what `/dialer-setup` writes)
 - `<cwd>/.pi/dialer.json` (project-local, wins over global; loaded for trusted projects only)
 
-The dialer uses the first file it finds, whole. It does not merge the two. Generate a project
-template with `/dialer-init`, or write one by hand.
+The dialer uses the first file it finds as a complete config; it does not merge the two. A
+trusted project's config overrides the global config, so fix or remove the project file if you
+want the global settings to apply there. Generate a project template with `/dialer-init`, or
+write one by hand.
 
 ```json
 {
@@ -218,11 +215,17 @@ in the resolved order wins (see Resolution details above).
 No. This extension registers no LLM-callable tool. Routing runs on your input, before the agent
 sees the prompt, from configuration only you can edit.
 
+**How does compaction work while the dialer is enabled?**
+
+Manual `/compact` and automatic threshold compaction use a real model instead of the parked
+virtual model. The dialer prefers the `default` route model, then the last real model used, then
+any authenticated text model. If no model is available, it cancels compaction and explains why.
+
 **Why did nothing switch?**
 
-Run `/dialer-status` and look. The dialer may be off, the route's model may not be authed, or the
-prompt fell through to a `default` route with no model configured (which means "keep the current
-model").
+Run `/dialer-status` and look. The dialer may be off, the route's model may not be available or
+authenticated, or the prompt may have fallen through to a `default` route with no model
+configured, which means "keep the current model".
 
 ## Development
 
