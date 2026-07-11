@@ -38,7 +38,10 @@ Save **named setups** and switch between them with `/dialer save` and `/dialer u
 3. The dialer applies the winning task's model and thinking level through pi's
    `setModel`/`setThinkingLevel` before the agent starts, and the footer shows the pick, e.g.
    `Dialer: plan → anthropic/claude-opus-4-5 (high)`.
-4. Each routed response ends with a stamp showing what ran and why.
+4. Context compaction (manual `/compact` or automatic) would normally use the selected model —
+   the virtual one, while parked — so the dialer runs it against a real model instead: the
+   `default` route's model, falling back to the last real model used.
+5. Each routed response ends with a stamp showing what ran and why.
 
    ```
    ---

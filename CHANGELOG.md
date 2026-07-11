@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.1
+
+- **Fix compaction while the dialer is on**: manual `/compact` and threshold auto-compaction
+  previously failed with "Pi Dialer is a router, not a model", because pi summarizes with the
+  selected model — the virtual one, while parked. A `session_before_compact` handler now runs
+  compaction against a real model (the `default` route's model, falling back to the last real
+  model used) and hands pi the finished result. Failures cancel compaction with a notification
+  explaining why, instead of retrying against the virtual model.
+
 ## 0.2.0
 
 - **Named setups**: `/dialer save <name>` snapshots the current routes into a reusable setup;

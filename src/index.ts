@@ -14,10 +14,13 @@
 
 import { createAssistantMessageEventStream } from "@earendil-works/pi-ai";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
+import { compact } from "@earendil-works/pi-coding-agent";
 import type {
+	CompactionResult,
 	ExtensionAPI,
 	ExtensionCommandContext,
 	ExtensionContext,
+	SessionBeforeCompactEvent,
 } from "@earendil-works/pi-coding-agent";
 import type { AutocompleteItem } from "@earendil-works/pi-tui";
 import { existsSync } from "node:fs";
@@ -107,6 +110,70 @@ export function formatRouteFooter(note: PendingRouteNote): string {
 		? "no keyword match"
 		: `matched: ${shown}${note.matched.length > 4 ? ", …" : ""}`;
 	return `\n\n---\n_Dialer: ${note.task} → ${note.model ?? "current model"} · thinking ${note.thinking ?? "keep"} · ${matched}_`;
+}
+
+/** Auth lookup result, structurally matching `ModelRegistry.getApiKeyAndHeaders`. */
+type RequestAuth =
+	| { ok: true; apiKey?: string; headers?: Record<string, string> }
+	| { ok: false; error: string };
+
+/** Seams of the `session_before_compact` handler, injectable for tests. */
+export interface DialerCompactionDeps {
+	/** True when the virtual dialer model is the current selection. */
+	parked: boolean;
+	/** Real model to summarize with (the fallbackRealModel chain). */
+	model: Model<Api> | undefined;
+	getAuth: (model: Model<Api>) => Promise<RequestAuth>;
+	compactFn: typeof compact;
+	notify: (message: string, level: "error") => void;
+}
+
+/**
+ * Compaction summarizes with the *selected* model, and pi captures that
+ * model's auth before `session_before_compact` fires — so while parked on the
+ * virtual model, pi's own compaction hits the "router, not a model" error and
+ * an in-handler model switch would run with the virtual model's fake auth.
+ * Instead, run compaction here against a real model and hand pi the finished
+ * result. Failures cancel (with a notify saying why) rather than fall
+ * through, because falling through re-runs against the unstreamable virtual
+ * model.
+ */
+export async function dialerCompaction(
+	event: Pick<SessionBeforeCompactEvent, "preparation" | "customInstructions" | "signal">,
+	deps: DialerCompactionDeps,
+): Promise<{ compaction: CompactionResult } | { cancel: true } | undefined> {
+	if (!deps.parked) return undefined;
+	if (!deps.model) {
+		deps.notify(
+			"Dialer: no authed model to compact with. Configure a `default` route model in /dialer-setup or pick a model manually.",
+			"error",
+		);
+		return { cancel: true };
+	}
+	const auth = await deps.getAuth(deps.model);
+	if (!auth.ok) {
+		deps.notify(`Dialer: cannot compact with ${modelDisplay(deps.model)}: ${auth.error}`, "error");
+		return { cancel: true };
+	}
+	try {
+		const compaction = await deps.compactFn(
+			event.preparation,
+			deps.model,
+			auth.apiKey,
+			auth.headers,
+			event.customInstructions,
+			event.signal,
+		);
+		return { compaction };
+	} catch (err) {
+		// An abort already surfaces as "Compaction cancelled" in pi; only
+		// notify for real failures.
+		if (!event.signal.aborted) {
+			const reason = err instanceof Error ? err.message : String(err);
+			deps.notify(`Dialer: compaction with ${modelDisplay(deps.model)} failed: ${reason}`, "error");
+		}
+		return { cancel: true };
+	}
 }
 
 export default function (pi: ExtensionAPI) {
@@ -363,6 +430,18 @@ export default function (pi: ExtensionAPI) {
 		pendingNote = undefined;
 		if (dialerOn) await parkOnDialer(ctx);
 	});
+
+	// Manual /compact and threshold auto-compaction both run while parked on
+	// the virtual model (auto-compaction fires after agent_end has parked), so
+	// produce the compaction against a real model here.
+	pi.on("session_before_compact", async (event, ctx) =>
+		dialerCompaction(event, {
+			parked: ctx.model?.provider === DIALER_PROVIDER,
+			model: fallbackRealModel(ctx),
+			getAuth: (model) => ctx.modelRegistry.getApiKeyAndHeaders(model),
+			compactFn: compact,
+			notify: (message, level) => ctx.ui.notify(message, level),
+		}));
 
 	pi.registerCommand("dialer", {
 		description: "Dialer routing: /dialer on | off | status | use <setup> | save <setup> (no arg toggles)",

@@ -38,7 +38,12 @@ through `fallbackRealModel` (default route model → last real model → any aut
 blocks the prompt if nothing resolves; `streamSimple` returns an error stream as a
 belt-and-suspenders if it is ever invoked. A `selfSwitch` flag distinguishes the extension's own
 `setModel` calls from manual user selection (which turns the dialer off); `model_select` with
-`source === "restore"` never turns it off.
+`source === "restore"` never turns it off. **Compaction**: pi summarizes with the *selected*
+model and captures its auth before `session_before_compact` fires, so while parked the extension
+must produce the `CompactionResult` itself (`dialerCompaction` + the top-level `compact` export
+from pi-coding-agent, against `fallbackRealModel`); switching models inside the handler would
+run with the virtual model's fake auth. Failures cancel with a notify — falling through would
+re-run against the unstreamable virtual model.
 
 **Routing.** `pi.on("input")` (skipping `/`-commands, `!`-bash, and extension-sourced input)
 classifies the prompt via `classify.ts` `classifyPrompt` — a pure keyword scorer (phrase word
