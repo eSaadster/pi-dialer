@@ -50,7 +50,11 @@ classifies the prompt via `classify.ts` `classifyPrompt` — a pure keyword scor
 count = weight, ties keep the earliest resolved route) — then applies the winning route's
 `model`/`thinking` via `pi.setModel`/`pi.setThinkingLevel` before the agent loop starts. Failure
 to resolve/auth a model degrades gracefully (warn + keep the current model); a prompt is only
-blocked (`action: "handled"`) if the virtual dialer model would otherwise stream.
+blocked (`action: "handled"`) if the virtual dialer model would otherwise stream. Skill and
+prompt-template commands ("/wraiter …") skip the input handler like every `/`-command but their
+expansion still streams, so a `before_agent_start` handler routes the *expanded* prompt (shared
+`applyRoute`) whenever the virtual model is still selected; that event cannot block the run, so
+the virtual model's error stream stays the last resort.
 
 **Response stamp.** The input handler stashes the routing decision in `pendingNote`; the
 `message_end` handler appends `formatRouteFooter(note)` to the final assistant message's last text

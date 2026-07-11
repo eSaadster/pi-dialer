@@ -31,7 +31,8 @@ Save **named setups** and switch between them with `/dialer save` and `/dialer u
    falls back to the `default` route.
 3. The dialer applies the winning task's model and thinking level through pi's
    `setModel`/`setThinkingLevel` before the agent starts, and the footer shows the pick, e.g.
-   `Dialer: plan → anthropic/claude-opus-4-5 (high)`.
+   `Dialer: plan → anthropic/claude-opus-4-5 (high)`. Skill and prompt-template commands
+   (`/wraiter …`) are routed too, by their expanded prompt.
 4. Manual `/compact` and automatic threshold compaction run against a real model while the
    dialer is parked on its virtual model. The dialer prefers the `default` route's model, then
    the last real model used, then any authenticated text model. If none is available, it cancels

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.2
+
+- **Fix skill and prompt-template commands while the dialer is on**: invoking a skill (e.g.
+  `/wraiter …`) failed with "Pi Dialer is a router, not a model" — `/`-commands skip the input
+  handler, but their expansion streams like a normal prompt, against the parked virtual model. A
+  `before_agent_start` handler now classifies and routes the expanded prompt whenever the virtual
+  model is still selected, so skill runs pick a route (and get the response stamp) like ordinary
+  prompts.
+
 ## 0.2.1
 
 - **Fix compaction while the dialer is on**: manual `/compact` and threshold auto-compaction

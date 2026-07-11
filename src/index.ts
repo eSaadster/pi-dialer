@@ -334,18 +334,12 @@ export default function (pi: ExtensionAPI) {
 		}
 	});
 
-	pi.on("input", async (event, ctx) => {
-		if (event.source === "extension") return { action: "continue" };
-		const text = event.text.trim();
-		if (!text || text.startsWith("/") || text.startsWith("!")) return { action: "continue" };
-		// Selecting the dialer at startup (pi --model dialer/pi-dialer) fires no
-		// model_select event, so treat "the virtual model is active" as enable.
-		if (!dialerOn && ctx.model?.provider === DIALER_PROVIDER) {
-			dialerOn = true;
-			persistState(true);
-		}
-		if (!dialerOn) return { action: "continue" };
-
+	/**
+	 * Classify `text`, apply the winning route's model + thinking level, and
+	 * stash the response stamp. Returns false when no real model could be made
+	 * active — the parked virtual model would be what streams.
+	 */
+	async function applyRoute(text: string, ctx: ExtensionContext): Promise<boolean> {
 		const routes = routesFor(ctx);
 		const classification = classifyPrompt(text, routes);
 		const route = routes.find((r) => r.task === classification.task);
@@ -384,7 +378,7 @@ export default function (pi: ExtensionAPI) {
 		const effective = routedModel ?? ctx.model;
 		if (!routedModel && ctx.model?.provider === DIALER_PROVIDER) {
 			ctx.ui.notify("Dialer: no real model active. Configure a `default` route model in /dialer-setup or pick a model manually.", "error");
-			return { action: "handled" };
+			return false;
 		}
 
 		updateStatus(ctx, routeNote(
@@ -400,7 +394,39 @@ export default function (pi: ExtensionAPI) {
 			thinking: pi.getThinkingLevel(),
 			matched: classification.matched,
 		};
+		return true;
+	}
+
+	pi.on("input", async (event, ctx) => {
+		if (event.source === "extension") return { action: "continue" };
+		const text = event.text.trim();
+		if (!text || text.startsWith("/") || text.startsWith("!")) return { action: "continue" };
+		// Selecting the dialer at startup (pi --model dialer/pi-dialer) fires no
+		// model_select event, so treat "the virtual model is active" as enable.
+		if (!dialerOn && ctx.model?.provider === DIALER_PROVIDER) {
+			dialerOn = true;
+			persistState(true);
+		}
+		if (!dialerOn) return { action: "continue" };
+		if (!(await applyRoute(text, ctx))) return { action: "handled" };
 		return { action: "continue" };
+	});
+
+	// Skill and prompt-template commands ("/wraiter …") slip past the input
+	// handler — it skips all /-commands because most don't stream — but their
+	// expansion runs the agent like a normal prompt. before_agent_start fires
+	// with the expanded text right before the agent loop, so route here if the
+	// virtual model is still what's selected. Ordinary routed prompts are
+	// already on a real model by now, making this a no-op. This event cannot
+	// block the run; if no real model resolves, the virtual model's error
+	// stream is the last resort.
+	pi.on("before_agent_start", async (event, ctx) => {
+		if (ctx.model?.provider !== DIALER_PROVIDER) return;
+		if (!dialerOn) {
+			dialerOn = true;
+			persistState(true);
+		}
+		await applyRoute(event.prompt, ctx);
 	});
 
 	// Stamp the routing decision under the final assistant response of a routed
