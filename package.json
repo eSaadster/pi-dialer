@@ -1,0 +1,54 @@
+{
+  "name": "pi-dialer",
+  "version": "0.2.0",
+  "description": "Automatic per-prompt model and thinking-level routing for pi",
+  "type": "module",
+  "main": "./src/index.ts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/eSaadster/pi-dialer.git"
+  },
+  "bugs": {
+    "url": "https://github.com/eSaadster/pi-dialer/issues"
+  },
+  "homepage": "https://github.com/eSaadster/pi-dialer#readme",
+  "keywords": ["pi-package", "pi-extension", "dialer", "model-picker", "router", "coding-agent", "llm"],
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "files": [
+    "src/*.ts",
+    "README.md",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    "SECURITY.md",
+    "CODE_OF_CONDUCT.md",
+    "LICENSE",
+    "tsconfig.json"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "clean": "rm -rf node_modules",
+    "build": "echo 'pi-dialer is loaded directly by pi via jiti; no build step required'",
+    "check": "tsc --noEmit",
+    "test": "for f in src/__tests__/*.test.ts; do node --import jiti/register \"$f\" || exit 1; done"
+  },
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
+  "dependencies": {},
+  "peerDependencies": {
+    "@earendil-works/pi-ai": ">=0.74.0",
+    "@earendil-works/pi-coding-agent": ">=0.74.0",
+    "@earendil-works/pi-tui": ">=0.74.0"
+  },
+  "devDependencies": {
+    "jiti": "^2.4.0",
+    "typescript": "^5.5.0"
+  }
+}

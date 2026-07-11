@@ -1,0 +1,57 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+# OIDC trusted publishing to npm (no NPM_TOKEN secret needed).
+# contents:write lets the workflow create the GitHub Release.
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          registry-url: "https://registry.npmjs.org"
+          cache: npm
+      - name: Upgrade npm (trusted publishing needs >=11.5.1)
+        run: npm install -g npm@latest
+      - name: Install
+        run: npm ci
+      - name: Typecheck
+        run: npm run check
+      - name: Test
+        run: npm test
+      - name: Publish
+        run: npm publish
+      - name: GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "Release $GITHUB_REF_NAME already exists; skipping."
+            exit 0
+          fi
+          version="${GITHUB_REF_NAME#v}"
+          version_re=$(printf '%s' "$version" | sed 's/[.]/\\./g')
+          # Extract the CHANGELOG section for this version (lines under "## <version>"
+          # up to the next "## " header).
+          awk -v ver="$version_re" '
+            $0 ~ "^## " ver "([ \t]|$)" { f=1; next }
+            f && /^## / { exit }
+            f { print }
+          ' CHANGELOG.md > release-notes.md
+          if [ -s release-notes.md ]; then
+            gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file release-notes.md
+          else
+            gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --generate-notes
+          fi
