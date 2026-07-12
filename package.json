@@ -1,6 +1,6 @@
 {
   "name": "pi-dialer",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Automatic per-prompt model and thinking-level routing for pi",
   "type": "module",
   "main": "./src/index.ts",
@@ -12,7 +12,15 @@
     "url": "https://github.com/eSaadster/pi-dialer/issues"
   },
   "homepage": "https://github.com/eSaadster/pi-dialer#readme",
-  "keywords": ["pi-package", "pi-extension", "dialer", "model-picker", "router", "coding-agent", "llm"],
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "dialer",
+    "model-picker",
+    "router",
+    "coding-agent",
+    "llm"
+  ],
   "license": "MIT",
   "engines": {
     "node": ">=22.19.0"

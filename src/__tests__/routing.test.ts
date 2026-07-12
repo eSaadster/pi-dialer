@@ -33,15 +33,27 @@ function makeHarness() {
 		}),
 	);
 
-	const models: Model<Api>[] = [fakeModel("openai", "gpt-impl"), fakeModel("openai", "gpt-base")];
+	const models: Model<Api>[] = [
+		fakeModel("openai", "gpt-impl"),
+		// Distinctive window/output limits so tests can tell the default route's
+		// numbers were copied (not the harness defaults).
+		fakeModel("openai", "gpt-base", { contextWindow: 372_000, maxTokens: 128_000 }),
+	];
 	const handlers = new Map<string, Handler>();
 	const setModelCalls: string[] = [];
 	const notifications: string[] = [];
 	let current: Model<Api> | undefined;
 
 	const pi = {
-		registerProvider: (name: string, config: { models: Array<{ id: string }> }) => {
-			for (const m of config.models) models.push(fakeModel(name, m.id));
+		// Mirrors the real registry: registering a provider that has models
+		// replaces all of that provider's existing models.
+		registerProvider: (name: string, config: { models: Array<{ id: string; contextWindow: number; maxTokens: number }> }) => {
+			for (let i = models.length - 1; i >= 0; i--) {
+				if (models[i].provider === name) models.splice(i, 1);
+			}
+			for (const m of config.models) {
+				models.push(fakeModel(name, m.id, { contextWindow: m.contextWindow, maxTokens: m.maxTokens }));
+			}
 		},
 		registerCommand: () => {},
 		on: (event: string, handler: Handler) => handlers.set(event, handler),
@@ -144,6 +156,18 @@ test("skill runs stamped like routed prompts via message_end", async () => {
 	if (!text.includes("Dialer: implement → openai/gpt-impl")) {
 		throw new Error(`expected route stamp on skill response, got: ${text}`);
 	}
+});
+
+test("parking syncs the virtual model's window from the default route's model", async () => {
+	const h = makeHarness();
+	await h.parkOn();
+	await h.fire("input", { source: "user", text: "implement a new parser" });
+	eq(h.current()?.id, "gpt-impl", "prompt routed to a real model");
+
+	await h.fire("agent_end", {});
+	eq(h.current()?.provider, DIALER_PROVIDER, "parked back on the dialer");
+	eq(h.current()?.contextWindow, 372_000, "contextWindow copied from openai/gpt-base");
+	eq(h.current()?.maxTokens, 128_000, "maxTokens copied from openai/gpt-base");
 });
 
 test("normal prompts still route through the input handler", async () => {

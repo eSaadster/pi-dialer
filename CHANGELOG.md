@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.3
+
+- **Fix the context window while parked on the virtual model**: pi computes the footer's context %
+  and the auto-compaction threshold from the *selected* model, and between prompts that is the
+  virtual `pi-dialer` model with its hard-coded 200k/8k limits — so a bigger-window route (e.g. the
+  372k Codex GPT-5.6 models) showed as capped at 200k and auto-compacted ~170k tokens early.
+  Parking now copies `contextWindow`/`maxTokens` from the model the next prompt would actually use
+  (the `default` route's model, falling back to the last real model used) onto the virtual model,
+  re-selecting it when a session restore replays stale numbers.
+
 ## 0.2.2
 
 - **Fix skill and prompt-template commands while the dialer is on**: invoking a skill (e.g.

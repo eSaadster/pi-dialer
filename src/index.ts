@@ -190,8 +190,9 @@ export default function (pi: ExtensionAPI) {
 	// It must never actually stream: routing switches to a real model before
 	// each run. reasoning: false keeps pi's footer from appending a thinking
 	// level next to the name. streamSimple is a belt-and-suspenders error in
-	// case it is ever invoked anyway.
-	pi.registerProvider(DIALER_PROVIDER, {
+	// case it is ever invoked anyway. Kept as a named config so
+	// syncDialerWindow can re-register it with updated contextWindow/maxTokens.
+	const dialerProvider: Parameters<ExtensionAPI["registerProvider"]>[1] = {
 		name: "Pi Dialer",
 		baseUrl: "https://pi-dialer.invalid",
 		apiKey: "pi-dialer",
@@ -228,11 +229,16 @@ export default function (pi: ExtensionAPI) {
 				reasoning: false,
 				input: ["text", "image"],
 				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+				// Placeholders until the first park: pi computes the footer's
+				// context % and the auto-compaction threshold from the *selected*
+				// model, so syncDialerWindow overwrites these with the real
+				// model's numbers whenever the dialer parks.
 				contextWindow: 200_000,
 				maxTokens: 8_192,
 			},
 		],
-	});
+	};
+	pi.registerProvider(DIALER_PROVIDER, dialerProvider);
 
 	function persistState(on: boolean) {
 		pi.appendEntry(STATE_ENTRY, { on, timestamp: Date.now() });
@@ -288,12 +294,43 @@ export default function (pi: ExtensionAPI) {
 			.find((m) => m.provider !== DIALER_PROVIDER && m.input.includes("text"));
 	}
 
+	/**
+	 * While parked, pi reads the *selected* model's contextWindow/maxTokens for
+	 * the footer's context % and the auto-compaction threshold — the virtual
+	 * model's placeholder numbers would cap a bigger-window route (e.g. 372k
+	 * Codex models against the 200k placeholder). Mirror the model the next
+	 * prompt and compaction would actually use (fallbackRealModel: default
+	 * route → last real → any authed) by re-registering the provider, which
+	 * replaces the registry's virtual model entry.
+	 */
+	function syncDialerWindow(ctx: ExtensionContext) {
+		const source = fallbackRealModel(ctx);
+		const spec = dialerProvider.models?.[0];
+		if (!source || !spec) return;
+		if (spec.contextWindow === source.contextWindow && spec.maxTokens === source.maxTokens) return;
+		spec.contextWindow = source.contextWindow;
+		spec.maxTokens = source.maxTokens;
+		pi.registerProvider(DIALER_PROVIDER, dialerProvider);
+	}
+
 	/** Park the selection on the virtual model so pi's footer reads "pi-dialer". */
 	async function parkOnDialer(ctx: ExtensionContext) {
-		if (ctx.model?.provider === DIALER_PROVIDER) return;
-		if (ctx.model) lastRealModel = ctx.model;
+		if (ctx.model && ctx.model.provider !== DIALER_PROVIDER) lastRealModel = ctx.model;
+		syncDialerWindow(ctx);
 		const virtual = ctx.modelRegistry.find(DIALER_PROVIDER, DIALER_MODEL_ID);
-		if (virtual) await switchModel(virtual);
+		if (!virtual) return;
+		// Already parked and current: nothing to do. Re-select when the window
+		// changed even while parked (session restore replays the model object
+		// saved with the old numbers) — pi reads the selected object, not the
+		// registry.
+		if (
+			ctx.model?.provider === DIALER_PROVIDER &&
+			ctx.model.contextWindow === virtual.contextWindow &&
+			ctx.model.maxTokens === virtual.maxTokens
+		) {
+			return;
+		}
+		await switchModel(virtual);
 	}
 
 	/** Leave the virtual model for a real one (dialer turning off / no route model). */
