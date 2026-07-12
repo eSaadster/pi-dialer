@@ -12,15 +12,7 @@
     "url": "https://github.com/eSaadster/pi-dialer/issues"
   },
   "homepage": "https://github.com/eSaadster/pi-dialer#readme",
-  "keywords": [
-    "pi-package",
-    "pi-extension",
-    "dialer",
-    "model-picker",
-    "router",
-    "coding-agent",
-    "llm"
-  ],
+  "keywords": ["pi-package", "pi-extension", "dialer", "model-picker", "router", "coding-agent", "llm"],
   "license": "MIT",
   "engines": {
     "node": ">=22.19.0"
