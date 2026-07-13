@@ -47,6 +47,11 @@ import type { Api, Model, ResolvedRoute, ThinkingLevel } from "./types.ts";
 export const DIALER_PROVIDER = "dialer";
 // The id is what pi's footer shows bottom-right while the dialer is parked.
 export const DIALER_MODEL_ID = "pi-dialer";
+// pi registers a provider's streamSimple in pi-ai's api registry keyed by
+// `api` — a shared value like "openai-completions" would hijack streaming for
+// every real model on that API. A private api id keeps the error stub scoped
+// to the virtual model.
+export const DIALER_API: Api = "pi-dialer";
 
 const STATE_ENTRY = "dialer-state";
 
@@ -196,7 +201,7 @@ export default function (pi: ExtensionAPI) {
 		name: "Pi Dialer",
 		baseUrl: "https://pi-dialer.invalid",
 		apiKey: "pi-dialer",
-		api: "openai-completions",
+		api: DIALER_API,
 		streamSimple: (model) => {
 			const stream = createAssistantMessageEventStream();
 			const message: AssistantMessage = {

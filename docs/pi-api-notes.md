@@ -14,6 +14,17 @@ matching `// pi gap:` comment at its call site.
   assertion so a future pi-tui rename fails loudly instead of silently. A public
   `SelectList.setItems(items: SelectItem[])` would remove the workaround.
 
+## Sharp edges
+
+- **`registerProvider`'s `streamSimple` is registered per `api`, not per provider.**
+  `ModelRegistry.applyProviderConfig` calls pi-ai's `registerApiProvider`, whose registry is a
+  `Map` keyed by `api` (`pi-ai/dist/api-registry.js`). Registering the virtual dialer model with
+  `api: "openai-completions"` therefore replaced the built-in streaming for **every**
+  openai-completions model — each of them streamed the dialer's "router, not a model" error stub.
+  The virtual model now uses a private `api: "pi-dialer"` (`DIALER_API` in `src/index.ts`) so the
+  stub only claims its own API id. Upstream candidate: key custom `streamSimple` registrations by
+  provider, or at least warn on overriding a built-in api.
+
 ## Used but documented only in `.d.ts` (not in `docs/*.md`)
 
 These work fine but are undocumented; relying on them is a small risk:

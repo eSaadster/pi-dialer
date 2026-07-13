@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.4
+
+- **Stop hijacking streaming for other openai-completions models**: pi registers a provider's
+  custom `streamSimple` keyed by its `api`, not by provider — so the virtual dialer model's
+  `api: "openai-completions"` replaced the built-in streaming for *every* model on that API, and
+  selecting (or even routing to) any of them failed with "Pi Dialer is a router, not a model".
+  The virtual model now uses a private `api: "pi-dialer"`, scoping the error stub to itself.
+
 ## 0.2.3
 
 - **Fix the context window while parked on the virtual model**: pi computes the footer's context %
